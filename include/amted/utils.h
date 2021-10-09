@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SOCKET_BUFFER_SIZE 1024
+
 
 void parse_arguments(int argc, char *argv[], char **ip, int *port) {
   // check ip
@@ -35,6 +37,13 @@ void parse_arguments(int argc, char *argv[], char **ip, int *port) {
     }
   }
   *port = atoi(argv[2]);
+}
+
+int get_file_size(FILE *fp) {
+  fseek(fp, 0, SEEK_END);
+  int sz = ftell(fp);
+  rewind(fp);
+  return sz;
 }
 
 

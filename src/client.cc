@@ -1,13 +1,45 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
 #include <unistd.h>
 #include <sys/time.h>
 #include <amted/network.h>
 #include <amted/utils.h>
 
 
-int download_file(int fd, char *filename) {
+int download_file(int fd, char *filename, int len) {
+  write(fd, filename, len);  // check buffer overflow.
+  static char buf[SOCKET_BUFFER_SIZE];
+  printf("Sent download request to server...\n");
+  bzero(buf, sizeof(buf)); 
+  int ret = read(fd, buf, sizeof(buf));
+  // printf("%s\n", buf);
+  // printf("%d\n", ret);
+  int file_size = std::stoi(buf);
+  if (file_size >= 0) {
+    printf("File %s found on server, size %dB...\n", filename, file_size);  
+  } else {
+    fprintf(stderr, "Cannot find %s on server...\n", filename);
+    return 0;
+  }
+  std::string filename_str = std::string(filename); 
+  std::string basename = filename_str.substr(filename_str.find_last_of("/\\") + 1);
+  FILE *fp = fopen(basename.c_str(), "w");
+  if (fp == NULL) {
+    fprintf(stderr, "File %s creation failed...\n", basename.c_str());
+    return 0;
+  }
+  int cnt = 0;
+  bzero(buf, sizeof(buf));
+  while (read(fd, buf, sizeof(buf)) > 0) {
+    int len = strlen(buf);
+    fwrite(buf, sizeof(char), len, fp);
+    bzero(buf, sizeof(buf));
+    cnt += len;
+    if (cnt >= file_size) break;
+  }
+  fclose(fp);
   return 1;
 }
 
@@ -38,14 +70,14 @@ void process_request(char *ip, int port) {
   static char filename[FILENAME_MAX];
   bzero(filename, sizeof(filename));
   while (1) {
-    int pos = 0;
-    while ((filename[pos++] = getchar()) != '\n');
-    filename[pos - 1] = '\0';
+    int len = 0;
+    while ((filename[len++] = getchar()) != '\n');
+    filename[len - 1] = '\0';
     gettimeofday(&current_time, NULL);
     int start_time = current_time.tv_sec;
     printf("Downloading %s on %s\n", filename, ip);
     gettimeofday(&current_time, NULL);
-    if (download_file(sock_fd, filename)) {
+    if (download_file(sock_fd, filename, len)) {
       int end_time = current_time.tv_sec;
       printf("Download successful, total time: %ds\n", end_time - start_time);
     } else {

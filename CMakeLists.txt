@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(550amtedserver C)
+project(550amtedserver C CXX)
 
 include_directories(include)
 
 file(GLOB AMTED_SERVER_SRC
-  src/server.c
+  src/server.cc
 )
 
 file(GLOB CLIENT_SRC
-  src/client.c
+  src/client.cc
 )
 
 add_executable(550amtedserver ${AMTED_SERVER_SRC})

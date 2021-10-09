@@ -5,7 +5,7 @@
 #ifndef AMTED_THREAD_POOL_H_
 #define AMTED_THREAD_POOL_H_
 
-struct ThreadPool 
+class ThreadPool 
 {
   // TODO
 };
