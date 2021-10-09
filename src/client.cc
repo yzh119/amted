@@ -8,14 +8,12 @@
 #include <amted/utils.h>
 
 
-int download_file(int fd, char *filename, int len) {
-  write(fd, filename, len);  // check buffer overflow.
+int download_file(int fd, char *filename, int filename_len) {
+  send(fd, filename, filename_len, 0);  // check buffer overflow.
   static char buf[SOCKET_BUFFER_SIZE];
   printf("Sent download request to server...\n");
   bzero(buf, sizeof(buf)); 
-  int ret = read(fd, buf, sizeof(buf));
-  // printf("%s\n", buf);
-  // printf("%d\n", ret);
+  int ret = recv(fd, buf, sizeof(buf), 0);
   int file_size = std::stoi(buf);
   if (file_size >= 0) {
     printf("File %s found on server, size %dB...\n", filename, file_size);  
@@ -30,13 +28,12 @@ int download_file(int fd, char *filename, int len) {
     fprintf(stderr, "File %s creation failed...\n", basename.c_str());
     return 0;
   }
-  int cnt = 0;
+  int cnt = 0, buf_len = 0;
   bzero(buf, sizeof(buf));
-  while (read(fd, buf, sizeof(buf)) > 0) {
-    int len = strlen(buf);
-    fwrite(buf, sizeof(char), len, fp);
+  while ((buf_len = recv(fd, buf, sizeof(buf), 0)) > 0) {
+    fwrite(buf, sizeof(char), buf_len, fp);
     bzero(buf, sizeof(buf));
-    cnt += len;
+    cnt += buf_len;
     if (cnt >= file_size) break;
   }
   fclose(fp);

@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
 #include <unistd.h>
 #include <amted/utils.h>
 #include <amted/network.h>
@@ -43,31 +42,30 @@ void run_file_server(char *ip, int port) {
   static char buf[SOCKET_BUFFER_SIZE];
   bzero(buf, sizeof(buf));
   // Accept packet;
-  while (1) {
-    conn_fd = accept(sock_fd, (struct sockaddr *)&cli, &len);
-    if (conn_fd < 0) {
-      fprintf(stderr, "Server accept failed...\n");
-      exit(1);
-    } else {
-      char cli_ip[INET_ADDRSTRLEN];
-      inet_ntop(AF_INET, (struct sockaddr *)&cli, cli_ip, INET_ADDRSTRLEN);
-      printf("Server accept the client from %s...\n", cli_ip);
-      read(conn_fd, buf, sizeof(buf));
+  conn_fd = accept(sock_fd, (struct sockaddr *)&cli, &len);
+  if (conn_fd < 0) {
+    fprintf(stderr, "Server accept failed...\n");
+    exit(1);
+  } else {
+    char cli_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, (struct sockaddr *)&cli, cli_ip, INET_ADDRSTRLEN);
+    printf("Server accept the client from %s...\n", cli_ip);
+    while (1) {
+      recv(conn_fd, buf, sizeof(buf), 0);
       printf("Received request of %s from %s...\n", buf, cli_ip);
       FILE *fp = fopen(buf, "r");
       if (fp == NULL) {
         fprintf(stderr, "Open file %s failed...\n", buf);
-        std::string file_size_str = std::to_string(-1);
-        write(conn_fd, file_size_str.c_str(), file_size_str.length());
+        sprintf(buf, "%d", -1);
+        send(conn_fd, buf, sizeof(buf), 0);
+        bzero(buf, sizeof(buf));
       } else {
         printf("Found file %s...\n", buf);
-        int file_size = get_file_size(fp);
-        std::string file_size_str = std::to_string(file_size);
-        write(conn_fd, file_size_str.c_str(), file_size_str.length());  // TODO(zihao): check
+        sprintf(buf, "%d", get_file_size(fp));
+        send(conn_fd, buf, sizeof(buf), 0);  // TODO(zihao): check
         bzero(buf, sizeof(buf));
         while (fread(buf, sizeof(char), sizeof(buf), fp)) {
-          int buf_len = strlen(buf);
-          write(conn_fd, buf, buf_len);
+          send(conn_fd, buf, sizeof(buf), 0);
           bzero(buf, sizeof(buf));
         }
         fclose(fp);
