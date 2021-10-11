@@ -4,7 +4,10 @@
 #include <unistd.h>
 #include <amted/utils.h>
 #include <amted/network.h>
+#include <amted/cache.h>
 
+
+amted::Cache global_cache(512 * 1024 * 1024);
 
 void run_file_server(char *ip, int port) {
   int sock_fd, conn_fd;
@@ -42,37 +45,51 @@ void run_file_server(char *ip, int port) {
   static char buf[SOCKET_BUFFER_SIZE];
   bzero(buf, sizeof(buf));
   // Accept packet;
-  conn_fd = accept(sock_fd, (struct sockaddr *)&cli, &len);
-  if (conn_fd < 0) {
-    fprintf(stderr, "Server accept failed...\n");
-    exit(1);
-  } else {
-    char cli_ip[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, (struct sockaddr *)&cli, cli_ip, INET_ADDRSTRLEN);
-    printf("Server accept the client from %s...\n", cli_ip);
-    while (1) {
-      recv(conn_fd, buf, sizeof(buf), 0);
-      printf("Received request of %s from %s...\n", buf, cli_ip);
-      FILE *fp = fopen(buf, "r");
-      if (fp == NULL) {
-        fprintf(stderr, "Open file %s failed...\n", buf);
-        sprintf(buf, "%d", -1);
-        send(conn_fd, buf, sizeof(buf), 0);
-        bzero(buf, sizeof(buf));
-      } else {
-        printf("Found file %s...\n", buf);
-        sprintf(buf, "%d", get_file_size(fp));
-        send(conn_fd, buf, sizeof(buf), 0);  // TODO(zihao): check
-        bzero(buf, sizeof(buf));
-        while (fread(buf, sizeof(char), sizeof(buf), fp)) {
+  while (1) {
+    conn_fd = accept(sock_fd, (struct sockaddr *)&cli, &len);
+    printf("Establish new connection...\n");
+    if (conn_fd < 0) {
+      fprintf(stderr, "Server accept failed...\n");
+      exit(1);
+    } else {
+      char cli_ip[INET_ADDRSTRLEN];
+      inet_ntop(AF_INET, (struct sockaddr *)&cli, cli_ip, INET_ADDRSTRLEN);
+      printf("Server accept the client from %s...\n", cli_ip);
+      while (1) {  // receiving a list of filenames from a single address.
+        recv(conn_fd, buf, sizeof(buf), 0);
+        if (strlen(buf) == 0) {
+          // connection closed;
+          printf("Connection with %s closed...\n", cli_ip);
+          break;
+        }
+        std::string filename = buf;
+        printf("Received request of %s from %s...\n", filename, cli_ip);
+        try {
+          std::shared_ptr<amted::File> f_ptr = global_cache.get_file(filename);
+          printf("Found file %s...\n", filename.c_str());
+          bzero(buf, sizeof(buf));
+          sprintf(buf, "%d", f_ptr->get_size());
+          send(conn_fd, buf, sizeof(buf), 0);
+          bzero(buf, sizeof(buf));
+          char *pos = f_ptr->get_content_ptr();
+          while (pos - f_ptr->get_content_ptr() < f_ptr->get_size()) {
+            send(conn_fd, pos, std::min<size_t>(SOCKET_BUFFER_SIZE, f_ptr->get_size() + f_ptr->get_content_ptr() - pos), 0);
+            pos = pos + SOCKET_BUFFER_SIZE;
+          }
+          printf("File %s sent.\n", filename.c_str());
+        }
+        catch (const std::runtime_error& error)
+        {
+          fprintf(stderr, "Open file %s failed...\n", filename.c_str());
+          bzero(buf, sizeof(buf));
+          sprintf(buf, "%d", -1);
           send(conn_fd, buf, sizeof(buf), 0);
           bzero(buf, sizeof(buf));
         }
-        fclose(fp);
-      }
+      }  // while (1)
+      close(conn_fd);
     }
-    close(conn_fd);
-  }
+  }  // while (1)
   close(sock_fd);
 }
 

@@ -71,12 +71,13 @@ void process_request(char *ip, int port) {
     while ((filename[len++] = getchar()) != '\n');
     filename[len - 1] = '\0';
     gettimeofday(&current_time, NULL);
-    int start_time = current_time.tv_sec;
+    int start_time = current_time.tv_usec;
     printf("Downloading %s on %s\n", filename, ip);
     gettimeofday(&current_time, NULL);
     if (download_file(sock_fd, filename, len)) {
-      int end_time = current_time.tv_sec;
-      printf("Download successful, total time: %ds\n", end_time - start_time);
+      gettimeofday(&current_time, NULL);
+      int end_time = current_time.tv_usec;
+      printf("Download successful, total time: %.3fs\n", (end_time - start_time) / 1e6);
     } else {
       fprintf(stderr, "Download failed...\n");
     }
