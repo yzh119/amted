@@ -1,11 +1,13 @@
 /*
  * \file amted/cache.h
  * \brief Cache data structure that stores files frequently used for AMTED
- * server.
+ * server. Note that the flash paper splits file into chunks while this simplify
+ * implementation doesn't.
  */
 #ifndef AMTED_CACHE_H_
 #define AMTED_CACHE_H_
 
+#include <iostream>
 #include <filesystem>
 #include <queue>
 #include <string>
@@ -74,9 +76,11 @@ class Cache {
     }
   }
 
-  inline void add_item(std::string path, std::shared_ptr<File> f_ptr) {
-    Q.push(std::make_tuple(path, time_stamp));
-    dict[path] = std::make_tuple(f_ptr, time_stamp);
+  inline void update_entry(std::string path, std::shared_ptr<File> f_ptr) {
+    Q.push(
+        std::make_tuple(path, time_stamp));  // update time stamp in the queue;
+    dict[path] =
+        std::make_tuple(f_ptr, time_stamp);  // update time stamp in the map;
     time_stamp++;
   }
 
@@ -85,33 +89,33 @@ class Cache {
       : cache_size(cache_size), used_size(0), time_stamp(0) {}
   ~Cache() {}
 
-  std::shared_ptr<File> get_file(std::string path) {
+  std::shared_ptr<File> lookup(std::string path) {
     path = absolute_path(path);
     auto it = dict.find(path);
     if (it != dict.end()) {
       // cache hit
       auto val = it->second;
       std::shared_ptr<File> f_ptr = std::get<0>(val);
-      dict[path] =
-          std::make_tuple(f_ptr, time_stamp);  // update time stamp in the map;
-      Q.push(std::make_tuple(path,
-                             time_stamp));  // update time stamp in the queue;
-      time_stamp++;
+      update_entry(path, f_ptr);
       return f_ptr;
     } else {
       // cache miss
-      std::shared_ptr<File> f_ptr = std::make_shared<File>(path);
-      size_t file_size = f_ptr->get_size();
-      if (file_size > cache_size) {
-        return f_ptr;
-      }
-      // replacement algorithm
-      while (file_size + used_size > cache_size) {
-        remove_least_recently_used();
-      }
-      add_item(path, f_ptr);
-      return f_ptr;
+      return nullptr;
     }
+  }
+
+  inline void add(std::string path, std::shared_ptr<File> f_ptr) {
+    path = absolute_path(path);
+    // cache miss
+    size_t file_size = f_ptr->get_size();
+    if (file_size > cache_size) {
+      return;  // don't write to cache if file exceed cache size.
+    }
+    // replacement algorithm
+    while (file_size + used_size > cache_size) {
+      remove_least_recently_used();
+    }
+    update_entry(path, f_ptr);
   }
 };
 

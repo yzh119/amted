@@ -44,8 +44,12 @@ void run_file_server(char *ip, int port) {
 
   static char buf[SOCKET_BUFFER_SIZE];
   bzero(buf, sizeof(buf));
-  // Accept packet;
+
+#ifdef __linux
+  // TODO
+#else
   while (1) {
+    // Accept packet;
     conn_fd = accept(sock_fd, (struct sockaddr *)&cli, &len);
     printf("Establish new connection...\n");
     if (conn_fd < 0) {
@@ -63,9 +67,17 @@ void run_file_server(char *ip, int port) {
           break;
         }
         std::string filename = buf;
-        printf("Received request of %s from %s...\n", filename, cli_ip);
+        printf("Received request of %s from %s...\n", filename.c_str(), cli_ip);
         try {
-          std::shared_ptr<amted::File> f_ptr = global_cache.get_file(filename);
+          std::shared_ptr<amted::File> f_ptr = global_cache.lookup(filename);
+          bool in_cache = f_ptr != nullptr;
+          if (in_cache) {
+            printf("Cache hit, load %s from cache...\n", filename.c_str());
+          } else {
+            printf("Cache miss, load %s from disk...\n", filename.c_str());
+            f_ptr = std::make_shared<amted::File>(filename);
+            global_cache.add(filename, f_ptr);
+          }
           printf("Found file %s...\n", filename.c_str());
           bzero(buf, sizeof(buf));
           sprintf(buf, "%d", f_ptr->get_size());
@@ -90,6 +102,7 @@ void run_file_server(char *ip, int port) {
       close(conn_fd);
     }
   }  // while (1)
+#endif
   close(sock_fd);
 }
 
