@@ -46,6 +46,8 @@ void run_file_server(char *ip, int port) {
   bzero(buf, sizeof(buf));
 
 #ifdef __linux
+  struct epoll_event event;
+  struct epoll_event *events;
   // TODO
 #else
   while (1) {
