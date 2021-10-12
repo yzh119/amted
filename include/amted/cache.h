@@ -7,7 +7,6 @@
 #ifndef AMTED_CACHE_H_
 #define AMTED_CACHE_H_
 
-#include <iostream>
 #include <filesystem>
 #include <queue>
 #include <string>
