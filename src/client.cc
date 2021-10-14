@@ -59,7 +59,7 @@ void process_request(char *ip, int port) {
   server_addr.sin_port = htons(port);
   if (connect(sock_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) != 0) {
     fprintf(stderr, "Connection with %s failed...\n", ip);
-    exit(1);
+    abort();
   } else {
     printf("Connected with %s...\n", ip);
   }
@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
     printf("port        : The port to connect to on the remote host.\n");
   } else {
     fprintf(stderr, "Invalid number of arguments, see %s --help for usage.\n", argv[0]);
-    exit(1);
+    abort();
   }
   return 0;
 }

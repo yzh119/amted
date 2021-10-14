@@ -5,19 +5,23 @@
 #include <amted/utils.h>
 #include <amted/network.h>
 #include <amted/cache.h>
+#include <amted/event_status.h>
 
+const int cache_size = 256 * 1024 * 1024;
+const int max_events = 16;
 
-amted::Cache global_cache(512 * 1024 * 1024);
+amted::Cache global_cache(cache_size);
 
 void run_file_server(char *ip, int port) {
   int sock_fd, conn_fd;
   socklen_t len;
   struct sockaddr_in server_addr, cli;
   
+  // create socket
   sock_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_fd == 1) {
     fprintf(stderr, "Socket creation failed...\n");
-    exit(1);
+    abort();
   } else {
     printf("Socket creation successful...\n");
   }
@@ -27,17 +31,26 @@ void run_file_server(char *ip, int port) {
   server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
   server_addr.sin_port = htons(port);
 
+  // bind socket
   if (bind(sock_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) != 0) {
     fprintf(stderr, "Socket binding failed...\n");
-    exit(1);
+    abort();
   } else {
     printf("Socket binding successful...\n");
   }
 
-  // Listen
+#ifdef __linux
+  if (make_socket_non_blocking(sock_fd) == -1) {
+    abort();
+  } else {
+    printf("Set socket to non-blocking mode.\n");
+  }
+#endif  // __linux
+
+  // listen
   if (listen(sock_fd, 5) != 0) {
     fprintf(stderr, "Listen failed...\n");
-    exit(1);
+    abort();
   } else {
     printf("Server listening...\n");
   }
@@ -48,15 +61,82 @@ void run_file_server(char *ip, int port) {
 #ifdef __linux
   struct epoll_event event;
   struct epoll_event *events;
+
+  int epoll_fd = epoll_create1(0);
+  if (epoll_fd == -1) {
+    fprintf(stderr, "Failed to create epoll...\n");
+    abort();
+  }
+
+  // add sock_fd to epoll set.
+  event.data.fd = sock_fd;
+  // event.data.u32 stores the status code.
+  // event.data.u64 stores the .
+  event.events = EPOLLIN | EPOLLET;  // edge-triggered
+  
+  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_fd, &event) == -1) {
+    fprintf(stderr, "Failed to add event to epoll set...\n");
+    abort();
+  } 
+
+  // To store the ready list returned by epoll_wait
+  events = (struct epoll_event *)calloc(max_events, sizeof(event));
+
+  /* Event loop
+   * 1. Check incoming connections in active events.
+   * 2. Read request from events.
+   * 3. Find filename in global cache.
+   * 4. If not hit, load data from global memory (create helper threads).
+   * 5. Update cache.
+   * 6. Send header to clients.
+   * 7. Read file and send data until eof.
+   */
+  while (1) {
+    int n = epoll_wait(epoll_fd, events, max_events, 50);  // wait for 50 milliseconds.
+    for (int i = 0; i < n; i++) {
+      if (is_error_status(events[i].events)) {
+        fprintf(stderr, "Epoll status error...\n");
+        close(events[i].data.fd);
+        continue;
+      } else if (sock_fd == events[i].data.fd) {
+        // have a new conncetion.
+        struct sockaddr in_addr;
+        socklen_t in_len;
+        int infd = accept(sock_fd, &in_addr, &in_len);
+        if (infd == -1) {
+          // TODO(Zihao): Error handling.
+        }
+        printf("Accepted connection on descriptor %d...\n", infd);
+        if (make_socket_non_blocking(infd) == -1) {
+          fprintf(stderr, "Failed to make socket non-blocking...\n");
+          abort();
+        }
+
+        // add infd to epoll set.
+        event.data.fd = infd;
+        event.data.ptr = new EventStatus;
+        // TODO(zihao): complete the items in event status;
+        event.events = EPOLLIN | EPOLLET | EPOLLOUT;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, infd, &event) == -1) {
+          fprintf(stderr, "Failed to add event to epoll set...\n");
+          abort();
+        }
+      } else {
+        // TODO(zihao)
+      }
+    }
+  }
   // TODO
 #else
+  // single process & blocking
+  // main loop
   while (1) {
-    // Accept packet;
+    // Establish connection;
     conn_fd = accept(sock_fd, (struct sockaddr *)&cli, &len);
     printf("Establish new connection...\n");
     if (conn_fd < 0) {
       fprintf(stderr, "Server accept failed...\n");
-      exit(1);
+      abort();
     } else {
       char cli_ip[INET_ADDRSTRLEN];
       inet_ntop(AF_INET, (struct sockaddr *)&cli, cli_ip, INET_ADDRSTRLEN);
@@ -123,7 +203,7 @@ int main(int argc, char *argv[]) {
     printf("port        : The port number this server listens to. \n");
   } else {
     fprintf(stderr, "Invalid number of arguments, see %s --help for usage.\n", argv[0]);
-    exit(1);
+    abort();
   }
   return 0;
 }

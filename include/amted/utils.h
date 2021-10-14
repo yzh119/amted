@@ -5,13 +5,15 @@
 #ifndef AMTED_UTILS_H_
 #define AMTED_UTILS_H_
 
-
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __linux
+#include <sys/epoll.h>
+#endif  // __linux
 
 #define SOCKET_BUFFER_SIZE 1024
-
 
 void parse_arguments(int argc, char *argv[], char **ip, int *port) {
   // check ip
@@ -46,5 +48,24 @@ int get_file_size(FILE *fp) {
   return sz;
 }
 
+inline int make_socket_non_blocking(int sfd) {
+  int flags = fcntl(sfd, F_GETFL, 0);
+  if (flags == -1) {
+    fprintf(stderr, "Failed to get file status...\n");
+    return -1;
+  }
+  flags |= O_NONBLOCK;
+  int s = fcntl(sfd, F_SETFL, flags);
+  if (s == -1) {
+    fprintf(stderr, "Failed to set file status...");
+    return -1;
+  }
+  return 0;
+}
+
+inline bool is_error_status(uint32_t epoll_status) {
+  return (epoll_status & EPOLLERR) || (epoll_status & EPOLLHUP) ||
+         (!(epoll_status & EPOLLIN));
+}
 
 #endif  // AMTED_UTILS_H_
