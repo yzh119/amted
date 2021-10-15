@@ -9,9 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef __linux
 #include <sys/epoll.h>
-#endif  // __linux
 
 #define SOCKET_BUFFER_SIZE 1024
 
@@ -61,11 +59,6 @@ inline int make_socket_non_blocking(int sfd) {
     return -1;
   }
   return 0;
-}
-
-inline bool is_error_status(uint32_t epoll_status) {
-  return (epoll_status & EPOLLERR) || (epoll_status & EPOLLHUP) || (
-    !(epoll_status & EPOLLIN) && !(epoll_status & EPOLLOUT));
 }
 
 #endif  // AMTED_UTILS_H_
