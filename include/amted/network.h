@@ -10,8 +10,6 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#ifdef __linux
 #include <sys/epoll.h>
-#endif
 
 #endif  // AMTED_NETWORK_H_
