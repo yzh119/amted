@@ -39,13 +39,11 @@ void run_file_server(char *ip, int port) {
     printf("Socket binding successful...\n");
   }
 
-#ifdef __linux
   if (make_socket_non_blocking(sock_fd) == -1) {
     abort();
   } else {
     printf("Set socket to non-blocking mode.\n");
   }
-#endif  // __linux
 
   // listen
   if (listen(sock_fd, 5) != 0) {
@@ -66,18 +64,23 @@ void run_file_server(char *ip, int port) {
   if (epoll_fd == -1) {
     fprintf(stderr, "Failed to create epoll...\n");
     abort();
+  } else {
+    printf("Epoll creation successful...\n");
   }
 
   // add sock_fd to epoll set.
-  event.data.fd = sock_fd;
-  // event.data.u32 stores the status code.
-  // event.data.u64 stores the .
+  EventStatus* status = new EventStatus;
+  status->conn_fd = sock_fd;
+  status->code = StatusCode::kAwaitingConncetion;
+  event.data.ptr = (void *)status;
   event.events = EPOLLIN | EPOLLET;  // edge-triggered
   
   if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_fd, &event) == -1) {
     fprintf(stderr, "Failed to add event to epoll set...\n");
     abort();
-  } 
+  } else {
+    printf("Add socket fd to epoll set...\n");
+  }
 
   // To store the ready list returned by epoll_wait
   events = (struct epoll_event *)calloc(max_events, sizeof(event));
@@ -92,37 +95,87 @@ void run_file_server(char *ip, int port) {
    * 7. Read file and send data until eof.
    */
   while (1) {
-    int n = epoll_wait(epoll_fd, events, max_events, 50);  // wait for 50 milliseconds.
+    int n = epoll_wait(epoll_fd, events, max_events, 500);  // wait for 50 milliseconds.
     for (int i = 0; i < n; i++) {
+      EventStatus* status = (EventStatus *)events[i].data.ptr;
+      if (status == nullptr) {
+        fprintf(stderr, "Internal error");
+        abort();
+      }
       if (is_error_status(events[i].events)) {
         fprintf(stderr, "Epoll status error...\n");
-        close(events[i].data.fd);
+        close(status->conn_fd);
         continue;
-      } else if (sock_fd == events[i].data.fd) {
+      } else if (sock_fd == status->conn_fd) {
         // have a new conncetion.
         struct sockaddr in_addr;
         socklen_t in_len;
         int infd = accept(sock_fd, &in_addr, &in_len);
         if (infd == -1) {
-          // TODO(Zihao): Error handling.
+          fprintf(stderr, "Failed to accept conncetion...\n");
+          fprintf(stderr, "%d\n", errno);
+          abort();
         }
         printf("Accepted connection on descriptor %d...\n", infd);
         if (make_socket_non_blocking(infd) == -1) {
           fprintf(stderr, "Failed to make socket non-blocking...\n");
           abort();
+        } else {
+          printf("Set the descriptor %d to non-blocking mode...\n", infd);
         }
 
         // add infd to epoll set.
-        event.data.fd = infd;
-        event.data.ptr = new EventStatus;
-        // TODO(zihao): complete the items in event status;
+        EventStatus *status = new EventStatus;
+        status->conn_fd = infd;
+        status->code = StatusCode::kAwaitingRequest;
+        event.data.ptr = (void *)status;
         event.events = EPOLLIN | EPOLLET | EPOLLOUT;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, infd, &event) == -1) {
           fprintf(stderr, "Failed to add event to epoll set...\n");
           abort();
+        } else {
+          printf("Add event on descriptor %d to epoll set...\n", infd);
         }
       } else {
-        // TODO(zihao)
+        // process request
+        switch (status->code)
+        {
+        case StatusCode::kAwaitingRequest:
+          ssize_t count;
+          count = read(status->conn_fd, buf, sizeof(buf));
+          if (count == -1) {
+            fprintf(stderr, "Error reading request from descriptor %d", status->conn_fd);
+            abort();
+          } else if (count == 0) {
+            /* End of file. close connection */
+            int fd = status->conn_fd;
+            printf("Close connection on descriptor %d\n", fd);
+            delete (EventStatus *)events[i].data.ptr;
+            close(fd);
+            continue;
+          }
+        
+          printf("Received request of %s...\n", buf);
+          strcpy(status->filename, buf);
+          bzero(buf, sizeof(buf));
+          status->code = StatusCode::kLoadingFile;
+          break;
+        case StatusCode::kCacheHit:
+          // TODO(zihao)
+          break;
+        case StatusCode::kCacheMiss:
+          // TODO(zihao)
+          break;
+        case StatusCode::kLoadingFile:
+          // TODO(zihao)
+          break;
+        case StatusCode::kWritingSocket:
+          // TODO(zihao)
+          break;
+        default:
+          // No other cases;
+          break;
+        }
       }
     }
   }

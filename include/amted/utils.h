@@ -64,8 +64,8 @@ inline int make_socket_non_blocking(int sfd) {
 }
 
 inline bool is_error_status(uint32_t epoll_status) {
-  return (epoll_status & EPOLLERR) || (epoll_status & EPOLLHUP) ||
-         (!(epoll_status & EPOLLIN));
+  return (epoll_status & EPOLLERR) || (epoll_status & EPOLLHUP) || (
+    !(epoll_status & EPOLLIN) && !(epoll_status & EPOLLOUT));
 }
 
 #endif  // AMTED_UTILS_H_
