@@ -1,3 +1,7 @@
+/*
+ * \file  amted/event_status.h
+ * \brief event status class for epoll
+ */
 #ifndef AMTED_EVENT_STATUS_H_
 #define AMTED_EVENT_STATUS_H_
 

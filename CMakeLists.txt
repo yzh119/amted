@@ -14,4 +14,5 @@ file(GLOB CLIENT_SRC
 )
 
 add_executable(550amtedserver ${AMTED_SERVER_SRC})
+target_link_libraries(550amtedserver pthread)
 add_executable(550client ${CLIENT_SRC})
