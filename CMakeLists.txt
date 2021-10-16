@@ -13,6 +13,8 @@ file(GLOB CLIENT_SRC
   src/client.cc
 )
 
-add_executable(550amtedserver ${AMTED_SERVER_SRC})
-target_link_libraries(550amtedserver pthread)
+if (LINUX)
+  add_executable(550amtedserver ${AMTED_SERVER_SRC})
+  target_link_libraries(550amtedserver pthread)
+endif()
 add_executable(550client ${CLIENT_SRC})
