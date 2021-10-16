@@ -13,8 +13,20 @@ file(GLOB CLIENT_SRC
   src/client.cc
 )
 
-if (LINUX)
+
+message(STATUS "Check if the system supports epoll")
+if(UNIX)
+  include(CheckSymbolExists)
+  check_symbol_exists(epoll_create "sys/epoll.h" EPOLL_PROTOTYPE_EXISTS)
+endif()
+
+if(EPOLL_PROTOTYPE_EXISTS)
+  message(STATUS "Check if the system supports epoll - yes")
+  message(STATUS "Compile both client and server.")
   add_executable(550amtedserver ${AMTED_SERVER_SRC})
   target_link_libraries(550amtedserver pthread)
+else()
+  message(STATUS "Check if the system supports epoll - no")
+  message(STATUS "Only compile client.")
 endif()
 add_executable(550client ${CLIENT_SRC})
