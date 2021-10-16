@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __linux__
 #include <sys/epoll.h>
+#endif
 
 #define SOCKET_BUFFER_SIZE 1024
 
