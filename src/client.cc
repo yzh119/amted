@@ -12,6 +12,7 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::duration<float> fsec;
 
+<<<<<<< HEAD
 int download_file(int fd, char *filename) {
   static char buf[SOCKET_BUFFER_SIZE];
   bzero(buf, sizeof(buf));
@@ -31,6 +32,11 @@ int download_file(int fd, char *filename) {
     }
   }
   bzero(buf, sizeof(buf));
+=======
+int download_file(int fd, char *filename, int filename_len) {
+  write(fd, filename, filename_len);  // check buffer overflow.
+  static char buf[SOCKET_BUFFER_SIZE];
+>>>>>>> parent of c9789e3... upd
   printf("Sent download request to server...\n");
   while (1) {
     int ret = read(fd, buf, sizeof(buf));
@@ -39,7 +45,7 @@ int download_file(int fd, char *filename) {
         // try again
         continue;
       } else {
-        fprintf(stderr, "Error reading file length from socket...\n");
+        fprintf(stderr, "Error reading content from socket...\n");
         abort();
       }
     } else {
@@ -71,7 +77,7 @@ int download_file(int fd, char *filename) {
         // try again
         continue;
       } else {
-        fprintf(stderr, "Error reading content from socket...\n");
+        fprintf(stderr, "Error reading content frmo socket...\n");
         abort();
       }
     } else {
