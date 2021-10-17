@@ -15,7 +15,7 @@ typedef std::chrono::duration<float> fsec;
 int download_file(int fd, char *filename) {
   static char buf[SOCKET_BUFFER_SIZE];
   bzero(buf, sizeof(buf));
-  strcmp(buf, filename);
+  strcpy(buf, filename);
   while (1) {
     int s = write(fd, buf, sizeof(buf));  // check buffer overflow.
     if (s == -1) {
