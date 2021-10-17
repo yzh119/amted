@@ -19,29 +19,31 @@ int download_file(int fd, char *filename) {
   size_t offset = 0;
   int ret = 0;
   while (1) {
-    ret = write(fd, buf + offset, SOCKET_BUFFER_SIZE);  // check buffer overflow.
+    ret = write(fd, buf + offset, sizeof(buf) - offset);  // check buffer overflow.
     if (ret == -1) {
       abort();
     } else {
       offset += ret;
     }
-    if (offset >= SOCKET_BUFFER_SIZE) {
+    if (offset >= sizeof(buf)) {
       break;
     }
   }
   bzero(buf, sizeof(buf));
   printf("Sent download request to server...\n");
+  offset = 0;
   while (1) {
-    ret = read(fd, buf, sizeof(buf));
+    ret = read(fd, buf + offset, sizeof(buf) - offset);
     if (ret == -1) {
       abort();
     } else {
       offset += ret;
     }
-    if (offset >= SOCKET_BUFFER_SIZE) {
+    if (offset >= sizeof(buf)) {
       break;
     }
   }
+  printf("%s\n", buf);
   int file_size = std::stoi(buf);
   if (file_size >= 0) {
     printf("File %s found on server, size %dB...\n", filename, file_size);
