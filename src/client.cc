@@ -29,6 +29,7 @@ int download_file(int fd, char *filename) {
       break;
     }
   }
+  bzero(buf, sizeof(buf));
   printf("Sent download request to server...\n");
   while (1) {
     int ret = read(fd, buf, sizeof(buf));
