@@ -154,18 +154,26 @@ void run_file_server(char *ip, int port) {
         }
       } else if (ev->events & EPOLLIN) {
         // process reading requests;
-        ssize_t s;
-        s = read(st->conn_fd, buf, sizeof(buf));
-        if (s == -1) {
-          if (errno == EAGAIN) {
-            fprintf(stderr, "Read socket full, try again later...\n");
-            continue;
+        ssize_t s = 0, offset = 0;
+        while (1) {
+          s = read(st->conn_fd, buf + offset, sizeof(buf) - offset);
+          if (s == -1) {
+            if (errno == EAGAIN) {
+              fprintf(stderr, "Read socket full, try again later...\n");
+              continue;
+            }
+            fprintf(stderr,
+                    "Error reading request from descriptor %d, error code %d\n",
+                    st->conn_fd, errno);
+            abort();
+          } else {
+            offset += s;
           }
-          fprintf(stderr,
-                  "Error reading request from descriptor %d, error code %d\n",
-                  st->conn_fd, errno);
-          abort();
-        } else if (s == 0) {
+          if (offset >= sizeof(buf)) {
+            break;
+          }
+        }
+        if (s == 0) {
           // end of file. close connection
           printf("Close connection on descriptor %d\n", st->conn_fd);
           close(st->conn_fd);
