@@ -13,7 +13,20 @@ typedef std::chrono::milliseconds ms;
 typedef std::chrono::duration<float> fsec;
 
 int download_file(int fd, char *filename, int filename_len) {
-  write(fd, filename, filename_len);  // check buffer overflow.
+  while (1) {
+    int s = write(fd, filename, filename_len);  // check buffer overflow.
+    if (s == -1) {
+      if (errno == EAGAIN) {
+        // try again
+        continue;
+      } else {
+        fprintf(stderr, "Error writing filename to socket...\n");
+        abort();
+      }
+    } else {
+      break;
+    }
+  }
   static char buf[SOCKET_BUFFER_SIZE];
   printf("Sent download request to server...\n");
   while (1) {
@@ -24,7 +37,7 @@ int download_file(int fd, char *filename, int filename_len) {
         // try again
         continue;
       } else {
-        fprintf(stderr, "Error reading content from socket...\n");
+        fprintf(stderr, "Error reading file length from socket...\n");
         abort();
       }
     } else {
@@ -55,7 +68,7 @@ int download_file(int fd, char *filename, int filename_len) {
         // try again
         continue;
       } else {
-        fprintf(stderr, "Error reading content frmo socket...\n");
+        fprintf(stderr, "Error reading content from socket...\n");
         abort();
       }
     } else {
