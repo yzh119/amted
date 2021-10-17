@@ -16,7 +16,19 @@ int download_file(int fd, char *filename) {
   static char buf[SOCKET_BUFFER_SIZE];
   bzero(buf, sizeof(buf));
   strcpy(buf, filename);
-  write(fd, buf, sizeof(buf));  // check buffer overflow.
+  while (1) {
+    int ret = write(fd, buf, sizeof(buf));  // check buffer overflow.
+    if (ret == -1) {
+      if (errno == EAGAIN) {
+        // try again
+      } else {
+        fprintf(stderr, "Error sending file requests...\n");
+        abort();
+      }
+    } else {
+      break;
+    }
+  }
   printf("Sent download request to server...\n");
   while (1) {
     int ret = read(fd, buf, sizeof(buf));
