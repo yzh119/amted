@@ -18,9 +18,10 @@ constexpr int max_events = 100;
 // Global buffer
 amted::Cache global_cache(cache_size);
 // List of file requests.
-std::list<
-    std::future<std::tuple<struct epoll_event *, std::shared_ptr<amted::File>>>>
+std::list<std::future<std::tuple<EventStatus *, std::shared_ptr<amted::File>>>>
     file_requests;
+// List of write requests.
+std::list<EventStatus *> write_requests;
 // Thread pool
 ThreadPool pool(max_events);
 
@@ -106,16 +107,17 @@ void run_file_server(char *ip, int port) {
   while (1) {
     // collect triggered events
     int n = epoll_wait(epoll_fd, events, max_events,
-                       50);  // non-blocking mode, timeout: 50ms
+                       10);  // non-blocking mode, timeout: 10ms
     // process socket read.
     for (int i = 0; i < n; ++i) {
       struct epoll_event *ev = &events[i];
       EventStatus *st = (EventStatus *)ev->data.ptr;
       if (sock_fd == st->conn_fd) {
         // establish new connections.
+        int infd;
         struct sockaddr in_addr;
         socklen_t in_len = sizeof(in_addr);
-        int infd = accept(sock_fd, &in_addr, &in_len);
+        infd = accept(sock_fd, &in_addr, &in_len);
         if (infd == -1) {
           if (errno == EAGAIN) {
             fprintf(stderr, "Read socket full, try again later...\n");
@@ -124,6 +126,8 @@ void run_file_server(char *ip, int port) {
           fprintf(stderr, "Failed to accept conncetion, error code: %d...\n",
                   errno);
           abort();
+        } else {
+          printf("Read socket successful...\n");
         }
         printf("Accepted connection on descriptor %d...\n", infd);
         if (make_socket_non_blocking(infd) == -1) {
@@ -166,7 +170,7 @@ void run_file_server(char *ip, int port) {
           printf("Close connection on descriptor %d\n", st->conn_fd);
           close(st->conn_fd);
           delete st;
-          continue;
+          break;
         }
         printf("Received request of %s...\n", buf);
         st->filename = buf;
@@ -184,30 +188,32 @@ void run_file_server(char *ip, int port) {
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
         } else {
           printf("Cache miss, loading file %s from disk...\n",
-                 st->filename.c_str());
+                  st->filename.c_str());
           // pool.enqueue(blocking_read, ev)
-          file_requests.emplace_back(pool.enqueue([ev, st]() {
+          file_requests.emplace_back(pool.enqueue([st]() {
             try {
               return std::make_tuple(
-                  ev, std::make_shared<amted::File>(st->filename));
+                  st, std::make_shared<amted::File>(st->filename));
             } catch (const std::runtime_error &err) {
-              return std::make_tuple(ev, std::shared_ptr<amted::File>());
+              return std::make_tuple(st, std::shared_ptr<amted::File>());
             }
           }));
         }
+      } else if (ev->events & EPOLLOUT) {
+        // process write requests;
+        write_requests.emplace_back(st);
       }
     }
 
     for (auto it = file_requests.begin(); it != file_requests.end();) {
       auto status = it->wait_for(std::chrono::milliseconds(0));
       if (status == std::future_status::ready) {
-        struct epoll_event *ev;
         std::shared_ptr<amted::File> fptr;
-        std::tie(ev, fptr) = it->get();
-        auto st = (EventStatus *)ev->data.ptr;
+        EventStatus *st;
+        std::tie(st, fptr) = it->get();
         // file is ready
         std::string filename = st->filename;
-        printf("Load %s complete...\n", filename.c_str());
+        printf("Load %s complete...\n", st->filename.c_str());
         // update event status
         if (fptr != nullptr) {
           st->fptr = fptr;
@@ -222,81 +228,89 @@ void run_file_server(char *ip, int port) {
         // remove item from list
         // https://stackoverflow.com/questions/596162/can-you-remove-elements-from-a-stdlist-while-iterating-through-it
         file_requests.erase(it++);
-      } else {
-        it++;
+        continue;
       }
+      it++;
     }
 
     // process socket write
-    for (int i = 0; i < n; ++i) {
-      struct epoll_event *ev = &events[i];
-      EventStatus *st = (EventStatus *)ev->data.ptr;
-      if (ev->events & EPOLLOUT) {
-        bool file_exist = st->fptr != nullptr;
-        // writing header;
-        if (!st->sent_header) {
-          if (file_exist) {
-            sprintf(buf, "%d", (int)st->file_size);
+    for (auto it = write_requests.begin(); it != write_requests.end();) {
+      EventStatus *st = *it;
+      bool file_exist = st->fptr != nullptr;
+      // writing header;
+      if (!st->sent_header) {
+        bzero(buf, sizeof(buf));
+        if (file_exist) {
+          sprintf(buf, "%d", (int)st->file_size);
+        } else {
+          sprintf(buf, "%d", -1);
+        }
+        ssize_t s = write(st->conn_fd, buf, sizeof(buf));
+        if (s == -1) {
+          if (errno == EAGAIN) {
+            fprintf(stderr, "Write socket full, try again later...\n");
+            continue;
           } else {
-            sprintf(buf, "%d", -1);
-            // switch to read mode
-            clear_status(st);
-            event.data.ptr = (void *)st;
-            event.events = EPOLLIN | EPOLLET;
-            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
-          }
-          ssize_t s = write(st->conn_fd, buf, sizeof(buf));
-          if (s == -1) {
-            if (errno == EAGAIN) {
-              fprintf(stderr, "Write socket full, try again later...\n");
-              continue;
-            }
             fprintf(
                 stderr,
                 "Failed to write header to descriptor %d, error code: %d...\n",
                 st->conn_fd, errno);
             abort();
           }
-          if (file_exist) st->sent_header = true;
-        }
-        // writing content;
-        if (file_exist) {
-          std::string filename = st->filename;
-          size_t file_size = st->file_size;
-          size_t &offset = st->offset;
-          printf("Writing %s to descriptor %d, remaining %d bytes...\n",
-                 filename.c_str(), st->conn_fd,
-                 (int)st->file_size - (int)st->offset);
-          char *ptr = st->fptr->get_content_ptr();
-          while (offset < file_size) {
-            ssize_t s =
-                write(st->conn_fd, ptr + offset,
-                      std::min<size_t>(file_size - offset, SOCKET_BUFFER_SIZE));
-            if (s == -1) {
-              if (errno == EAGAIN) {
-                fprintf(stderr, "Write socket full, try again later...\n");
-                continue;
-              } else {
-                fprintf(
-                    stderr,
-                    "Failed write file to descriptor %d, error code: %d...\n",
-                    st->conn_fd, errno);
-                abort();
-              }
-            } else {
-              offset += SOCKET_BUFFER_SIZE;
-            }
-          }
-          if (offset >= file_size) {
-            printf("Send successful...\n");
-            // switch to read mode.
+        } else {
+          // write success
+          if (!file_exist) {
+            // switch to read mode is file do not exists.
             clear_status(st);
             event.data.ptr = (void *)st;
             event.events = EPOLLIN | EPOLLET;
             epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
+            // remove item from list
+            write_requests.erase(it++);
+            continue;
           }
+          st->sent_header = true;
         }
       }
+      // writing content;
+      if (file_exist) {
+        std::string filename = st->filename;
+        size_t file_size = st->file_size;
+        size_t &offset = st->offset;
+        printf("Writing %s to descriptor %d, remaining %d bytes...\n",
+               filename.c_str(), st->conn_fd,
+               (int)st->file_size - (int)st->offset);
+        char *ptr = st->fptr->get_content_ptr();
+        // begin
+        ssize_t s =
+            write(st->conn_fd, ptr + offset, file_size - offset);
+        if (s == -1) {
+          if (errno == EAGAIN) {
+            fprintf(stderr, "Write socket full, try again later...\n");
+            continue;
+          } else {
+            fprintf(stderr,
+                    "Failed write file to descriptor %d, error code: %d...\n",
+                    st->conn_fd, errno);
+            abort();
+          }
+        } else {
+          offset += s;
+        }
+        // end
+        if (offset >= file_size) {
+          printf("Send successful...\n");
+          // switch to read mode.
+          clear_status(st);
+          event.data.ptr = (void *)st;
+          event.events = EPOLLIN | EPOLLET;
+          epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
+          // remove item from list
+          write_requests.erase(it++);
+          continue;
+        }
+      }
+      it++;
     }
   }
   close(sock_fd);

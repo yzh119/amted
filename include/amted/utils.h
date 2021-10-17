@@ -13,7 +13,7 @@
 #include <sys/epoll.h>
 #endif
 
-#define SOCKET_BUFFER_SIZE 1024
+#define SOCKET_BUFFER_SIZE 8192
 
 void parse_arguments(int argc, char *argv[], char **ip, int *port) {
   // check ip
