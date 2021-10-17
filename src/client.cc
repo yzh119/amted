@@ -14,6 +14,7 @@ int download_file(int fd, char *filename, int filename_len) {
   printf("Sent download request to server...\n");
   bzero(buf, sizeof(buf)); 
   int ret = recv(fd, buf, sizeof(buf), 0);
+  printf("%s\n", buf);
   int file_size = std::stoi(buf);
   if (file_size >= 0) {
     printf("File %s found on server, size %dB...\n", filename, file_size);  
