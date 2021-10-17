@@ -12,25 +12,9 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::duration<float> fsec;
 
-int download_file(int fd, char *filename) {
+int download_file(int fd, char *filename, int filename_len) {
+  write(fd, filename, filename_len);  // check buffer overflow.
   static char buf[SOCKET_BUFFER_SIZE];
-  bzero(buf, sizeof(buf));
-  strcpy(buf, filename);
-  while (1) {
-    int s = write(fd, buf, sizeof(buf));  // check buffer overflow.
-    if (s == -1) {
-      if (errno == EAGAIN) {
-        // try again
-        continue;
-      } else {
-        fprintf(stderr, "Error writing filename to socket...\n");
-        abort();
-      }
-    } else {
-      break;
-    }
-  }
-  bzero(buf, sizeof(buf));
   printf("Sent download request to server...\n");
   while (1) {
     int ret = read(fd, buf, sizeof(buf));
@@ -39,7 +23,7 @@ int download_file(int fd, char *filename) {
         // try again
         continue;
       } else {
-        fprintf(stderr, "Error reading file length from socket...\n");
+        fprintf(stderr, "Error reading content from socket...\n");
         abort();
       }
     } else {
@@ -71,7 +55,7 @@ int download_file(int fd, char *filename) {
         // try again
         continue;
       } else {
-        fprintf(stderr, "Error reading content from socket...\n");
+        fprintf(stderr, "Error reading content frmo socket...\n");
         abort();
       }
     } else {
@@ -117,7 +101,7 @@ void process_request(char *ip, int port) {
     filename[len - 1] = '\0';
     printf("Downloading %s on %s\n", filename, ip);
     auto tic = Time::now();
-    if (download_file(sock_fd, filename)) {
+    if (download_file(sock_fd, filename, len)) {
       auto toc = Time::now();
       printf("Download successful, total time: %ldms\n",
              std::chrono::duration_cast<ms>(toc - tic).count());
