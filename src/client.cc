@@ -16,32 +16,29 @@ int download_file(int fd, char *filename) {
   static char buf[SOCKET_BUFFER_SIZE];
   bzero(buf, sizeof(buf));
   strcpy(buf, filename);
+  size_t offset = 0;
+  int ret = 0;
   while (1) {
-    int ret = write(fd, buf, sizeof(buf));  // check buffer overflow.
+    ret = write(fd, buf + offset, SOCKET_BUFFER_SIZE);  // check buffer overflow.
     if (ret == -1) {
-      if (errno == EAGAIN) {
-        // try again
-      } else {
-        fprintf(stderr, "Error sending file requests...\n");
-        abort();
-      }
+      abort();
     } else {
+      offset += ret;
+    }
+    if (offset >= SOCKET_BUFFER_SIZE) {
       break;
     }
   }
   bzero(buf, sizeof(buf));
   printf("Sent download request to server...\n");
   while (1) {
-    int ret = read(fd, buf, sizeof(buf));
+    ret = read(fd, buf, sizeof(buf));
     if (ret == -1) {
-      if (errno == EAGAIN) {
-        // try again
-        continue;
-      } else {
-        fprintf(stderr, "Error reading content from socket...\n");
-        abort();
-      }
+      abort();
     } else {
+      offset += ret;
+    }
+    if (offset >= SOCKET_BUFFER_SIZE) {
       break;
     }
   }
@@ -61,21 +58,15 @@ int download_file(int fd, char *filename) {
     return 0;
   }
   bzero(buf, sizeof(buf));
-  int offset = 0, buf_len = 0;
+  offset = 0;
   while (1) {
     bzero(buf, sizeof(buf));
-    buf_len = read(fd, buf, std::min<int>(sizeof(buf), file_size - offset));
-    if (buf_len == -1) {
-      if (errno == EAGAIN) {
-        // try again
-        continue;
-      } else {
-        fprintf(stderr, "Error reading content frmo socket...\n");
-        abort();
-      }
+    ret = read(fd, buf, std::min<int>(sizeof(buf), file_size - offset));
+    if (ret == -1) {
+      abort();
     } else {
-      fwrite(buf, sizeof(char), buf_len, fp);
-      offset += buf_len;
+      fwrite(buf, sizeof(char), ret, fp);
+      offset += ret;
       if (offset >= file_size) break;
     }
   }
