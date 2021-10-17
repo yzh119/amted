@@ -169,6 +169,7 @@ void run_file_server(char *ip, int port) {
           // end of file. close connection
           printf("Close connection on descriptor %d\n", st->conn_fd);
           close(st->conn_fd);
+          // TODO(zihao): delete corresponding entries in file requests and write requests.
           delete st;
           break;
         }
@@ -249,6 +250,7 @@ void run_file_server(char *ip, int port) {
         if (s == -1) {
           if (errno == EAGAIN) {
             fprintf(stderr, "Write socket full, try again later...\n");
+            it++;
             continue;
           } else {
             fprintf(
@@ -287,6 +289,7 @@ void run_file_server(char *ip, int port) {
         if (s == -1) {
           if (errno == EAGAIN) {
             fprintf(stderr, "Write socket full, try again later...\n");
+            it++;
             continue;
           } else {
             fprintf(stderr,
