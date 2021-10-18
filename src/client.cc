@@ -12,38 +12,24 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::duration<float> fsec;
 
-int download_file(int fd, char *filename) {
+int download_file(int fd, char *filename, int filename_len) {
+  write(fd, filename, filename_len);  // check buffer overflow.
   static char buf[SOCKET_BUFFER_SIZE];
-  bzero(buf, sizeof(buf));
-  strcpy(buf, filename);
-  size_t offset = 0;
-  int ret = 0;
-  while (1) {
-    ret = write(fd, buf + offset, sizeof(buf) - offset);  // check buffer overflow.
-    if (ret == -1) {
-      abort();
-    } else {
-      offset += ret;
-    }
-    if (offset >= sizeof(buf)) {
-      break;
-    }
-  }
-  bzero(buf, sizeof(buf));
   printf("Sent download request to server...\n");
-  offset = 0;
   while (1) {
-    ret = read(fd, buf + offset, sizeof(buf) - offset);
+    int ret = read(fd, buf, sizeof(buf));
     if (ret == -1) {
-      abort();
+      if (errno == EAGAIN) {
+        // try again
+        continue;
+      } else {
+        fprintf(stderr, "Error reading content from socket...\n");
+        abort();
+      }
     } else {
-      offset += ret;
-    }
-    if (offset >= sizeof(buf)) {
       break;
     }
   }
-  printf("%s\n", buf);
   int file_size = std::stoi(buf);
   if (file_size >= 0) {
     printf("File %s found on server, size %dB...\n", filename, file_size);
@@ -60,16 +46,22 @@ int download_file(int fd, char *filename) {
     return 0;
   }
   bzero(buf, sizeof(buf));
-  offset = 0;
+  int cnt = 0, buf_len = 0;
   while (1) {
     bzero(buf, sizeof(buf));
-    ret = read(fd, buf, std::min<int>(sizeof(buf), file_size - offset));
-    if (ret == -1) {
-      abort();
+    buf_len = read(fd, buf, std::min<int>(sizeof(buf), file_size - cnt));
+    if (buf_len == -1) {
+      if (errno == EAGAIN) {
+        // try again
+        continue;
+      } else {
+        fprintf(stderr, "Error reading content frmo socket...\n");
+        abort();
+      }
     } else {
-      fwrite(buf, sizeof(char), ret, fp);
-      offset += ret;
-      if (offset >= file_size) break;
+      fwrite(buf, sizeof(char), buf_len, fp);
+      cnt += buf_len;
+      if (cnt >= file_size) break;
     }
   }
   fclose(fp);
@@ -109,7 +101,7 @@ void process_request(char *ip, int port) {
     filename[len - 1] = '\0';
     printf("Downloading %s on %s\n", filename, ip);
     auto tic = Time::now();
-    if (download_file(sock_fd, filename)) {
+    if (download_file(sock_fd, filename, len)) {
       auto toc = Time::now();
       printf("Download successful, total time: %ldms\n",
              std::chrono::duration_cast<ms>(toc - tic).count());
