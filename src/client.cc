@@ -16,19 +16,9 @@ int download_file(int fd, char *filename, int filename_len) {
   write(fd, filename, filename_len);  // check buffer overflow.
   static char buf[SOCKET_BUFFER_SIZE];
   printf("Sent download request to server...\n");
-  while (1) {
-    int ret = read(fd, buf, sizeof(buf));
-    if (ret == -1) {
-      if (errno == EAGAIN) {
-        // try again
-        continue;
-      } else {
-        fprintf(stderr, "Error reading content from socket...\n");
-        abort();
-      }
-    } else {
-      break;
-    }
+  int ret = read(fd, buf, sizeof(buf));
+  if (ret == -1) {
+    abort();
   }
   int file_size = std::stoi(buf);
   if (file_size >= 0) {
