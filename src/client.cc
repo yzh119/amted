@@ -12,15 +12,46 @@ typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::duration<float> fsec;
 
+int collect_no_escape(char *dst, char *src, size_t len) {
+  bzero(dst, len);
+  char *c = src, *d = dst;
+  for (; c < src + len; ++c) {
+    if (*c != 0) {
+      *d = *c;
+      d++;
+    }
+  }
+  return d - dst; 
+}
+
 int download_file(int fd, char *filename, int filename_len) {
   write(fd, filename, filename_len);  // check buffer overflow.
   static char buf[SOCKET_BUFFER_SIZE];
+  static char buf1[SOCKET_BUFFER_SIZE];
   printf("Sent download request to server...\n");
-  int ret = read(fd, buf, sizeof(buf));
-  if (ret == -1) {
-    abort();
+  int ret, offset;
+  int file_size;
+  while (1) {
+    ret = read(fd, buf, sizeof(buf));
+    if (ret == -1) {
+      abort();
+    } else {
+      int len = collect_no_escape(buf1, buf, sizeof(buf));
+      if (len > 0) {
+        try {
+          file_size = std::stoi(buf1);
+          break;
+        } catch (std::invalid_argument& e) {
+          fprintf(stderr, "Error parsing header...\n");
+          for (char *c = buf; c < buf + sizeof(buf); c++) {
+            putchar(*c);
+          }
+          puts("");
+          abort();
+        }
+      }
+    }
   }
-  int file_size = std::stoi(buf);
   if (file_size >= 0) {
     printf("File %s found on server, size %dB...\n", filename, file_size);
   } else {
@@ -41,16 +72,11 @@ int download_file(int fd, char *filename, int filename_len) {
     bzero(buf, sizeof(buf));
     buf_len = read(fd, buf, std::min<int>(sizeof(buf), file_size - cnt));
     if (buf_len == -1) {
-      if (errno == EAGAIN) {
-        // try again
-        continue;
-      } else {
-        fprintf(stderr, "Error reading content frmo socket...\n");
-        abort();
-      }
+      abort();
     } else {
-      fwrite(buf, sizeof(char), buf_len, fp);
-      cnt += buf_len;
+      int len = collect_no_escape(buf1, buf, buf_len);
+      fwrite(buf1, sizeof(char), len, fp);
+      cnt += len;
       if (cnt >= file_size) break;
     }
   }
