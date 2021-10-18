@@ -117,17 +117,20 @@ void run_file_server(char *ip, int port) {
         int infd;
         struct sockaddr in_addr;
         socklen_t in_len = sizeof(in_addr);
-        infd = accept(sock_fd, &in_addr, &in_len);
-        if (infd == -1) {
-          if (errno == EAGAIN) {
-            fprintf(stderr, "Read socket full, try again later...\n");
-            continue;
+        while (1) {
+          infd = accept(sock_fd, &in_addr, &in_len);
+          if (infd == -1) {
+            if (errno == EAGAIN) {
+              fprintf(stderr, "Read socket full, try again later...\n");
+              continue;
+            }
+            fprintf(stderr, "Failed to accept conncetion, error code: %d...\n",
+                    errno);
+            abort();
+          } else {
+            break;
+            printf("Read socket successful...\n");
           }
-          fprintf(stderr, "Failed to accept conncetion, error code: %d...\n",
-                  errno);
-          abort();
-        } else {
-          printf("Read socket successful...\n");
         }
         printf("Accepted connection on descriptor %d...\n", infd);
         if (make_socket_non_blocking(infd) == -1) {
@@ -154,18 +157,23 @@ void run_file_server(char *ip, int port) {
         }
       } else if (ev->events & EPOLLIN) {
         // process reading requests;
-        ssize_t s;
-        s = read(st->conn_fd, buf, sizeof(buf));
-        if (s == -1) {
-          if (errno == EAGAIN) {
-            fprintf(stderr, "Read socket full, try again later...\n");
-            continue;
+        ssize_t ret;
+        while (1) {
+          ret = read(st->conn_fd, buf, sizeof(buf));
+          if (ret == -1) {
+            if (errno == EAGAIN) {
+              fprintf(stderr, "Read socket full, try again later...\n");
+              continue;
+            }
+            fprintf(stderr,
+                    "Error reading request from descriptor %d, error code %d\n",
+                    st->conn_fd, errno);
+            abort();
+          } else {
+            break;
           }
-          fprintf(stderr,
-                  "Error reading request from descriptor %d, error code %d\n",
-                  st->conn_fd, errno);
-          abort();
-        } else if (s == 0) {
+        }
+        if (ret == 0) {
           // end of file. close connection
           printf("Close connection on descriptor %d\n", st->conn_fd);
           close(st->conn_fd);
@@ -245,10 +253,11 @@ void run_file_server(char *ip, int port) {
         } else {
           sprintf(buf, "%d", -1);
         }
-        ssize_t s = write(st->conn_fd, buf, sizeof(buf));
-        if (s == -1) {
+        ssize_t ret = write(st->conn_fd, buf, sizeof(buf));
+        if (ret == -1) {
           if (errno == EAGAIN) {
             fprintf(stderr, "Write socket full, try again later...\n");
+            it++;
             continue;
           } else {
             fprintf(
@@ -282,11 +291,12 @@ void run_file_server(char *ip, int port) {
                (int)st->file_size - (int)st->offset);
         char *ptr = st->fptr->get_content_ptr();
         // begin
-        ssize_t s =
+        ssize_t ret =
             write(st->conn_fd, ptr + offset, file_size - offset);
-        if (s == -1) {
+        if (ret == -1) {
           if (errno == EAGAIN) {
             fprintf(stderr, "Write socket full, try again later...\n");
+            it++;
             continue;
           } else {
             fprintf(stderr,
@@ -295,7 +305,7 @@ void run_file_server(char *ip, int port) {
             abort();
           }
         } else {
-          offset += s;
+          offset += ret;
         }
         // end
         if (offset >= file_size) {

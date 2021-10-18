@@ -39,7 +39,7 @@ int download_file(int fd, char *filename, int filename_len) {
   int cnt = 0, buf_len = 0;
   while (1) {
     bzero(buf, sizeof(buf));
-    buf_len = read(fd, buf, std::min<int>(sizeof(buf), file_size - cnt));
+    buf_len = read(fd, buf, sizeof(buf));
     if (buf_len == -1) {
       if (errno == EAGAIN) {
         // try again
@@ -49,7 +49,7 @@ int download_file(int fd, char *filename, int filename_len) {
         abort();
       }
     } else {
-      fwrite(buf, sizeof(char), buf_len, fp);
+      fwrite(buf, sizeof(char), std::min(buf_len, file_size - cnt), fp);
       cnt += buf_len;
       if (cnt >= file_size) break;
     }
