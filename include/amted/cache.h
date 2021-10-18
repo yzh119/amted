@@ -1,4 +1,4 @@
-/*
+/*!
  * \file amted/cache.h
  * \brief Cache data structure that stores files frequently used for AMTED
  * server. Note that the flash paper splits file into chunks while this simplify
@@ -17,6 +17,9 @@
 
 namespace amted {
 
+/*!
+ * \brief a wrapper class of file.
+ */
 class File {
  private:
   char* content;
@@ -42,6 +45,9 @@ class File {
   char* get_content_ptr() const { return content; }
 };
 
+/*!
+ * \brief an application level cache, w/ LRU replacement strategy.
+ */
 class Cache {
  private:
   const size_t cache_size;
@@ -51,21 +57,23 @@ class Cache {
   size_t time_stamp;
   std::queue<std::tuple<std::string, size_t>> Q;
 
+  // get absoluate path.
   inline std::string absolute_path(std::string path) {
     std::filesystem::path p = path;
     return std::filesystem::absolute(p).string();
   }
 
+  // replace old entries.
   inline void remove_least_recently_used() {
     while (!Q.empty()) {
       std::string p;
-      size_t time_stamp_0, time_stamp_1;
+      size_t time_stamp_old, time_stamp_latest;
       std::shared_ptr<File> f_ptr;
-      std::tie(p, time_stamp_0) = Q.front();
+      std::tie(p, time_stamp_old) = Q.front();
       Q.pop();
-      std::tie(f_ptr, time_stamp_1) = dict[p];
-      if (time_stamp_0 !=
-          time_stamp_1) {  // the entry in the queue is out-dated.
+      std::tie(f_ptr, time_stamp_latest) = dict[p];
+      if (time_stamp_old !=
+          time_stamp_latest) {  // the entry in the queue is out-dated.
         continue;
       } else {
         used_size -= f_ptr->get_size();
@@ -75,6 +83,7 @@ class Cache {
     }
   }
 
+  // update the file in queue and map with new timestamp.
   inline void update_entry(std::string path, std::shared_ptr<File> f_ptr) {
     Q.push(
         std::make_tuple(path, time_stamp));  // update time stamp in the queue;

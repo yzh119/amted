@@ -1,4 +1,4 @@
-/*
+/*!
  * \file  amted/event_status.h
  * \brief event status class for epoll
  */

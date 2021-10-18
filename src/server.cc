@@ -1,3 +1,10 @@
+/*!
+ * \file server.cc
+ * \brief amted server for cse 550 assignment 1.
+ * \example
+ *    ./550amtedserver 127.0.0.1 23333
+ */
+
 #include <amted/cache.h>
 #include <amted/event_status.h>
 #include <amted/network.h>
@@ -196,7 +203,7 @@ void run_file_server(char *ip, int port) {
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
         } else {
           printf("Cache miss, loading file %s from disk...\n",
-                  st->filename.c_str());
+                 st->filename.c_str());
           // pool.enqueue(blocking_read, ev)
           file_requests.emplace_back(pool.enqueue([st]() {
             try {
@@ -291,8 +298,7 @@ void run_file_server(char *ip, int port) {
                (int)st->file_size - (int)st->offset);
         char *ptr = st->fptr->get_content_ptr();
         // begin
-        ssize_t ret =
-            write(st->conn_fd, ptr + offset, file_size - offset);
+        ssize_t ret = write(st->conn_fd, ptr + offset, file_size - offset);
         if (ret == -1) {
           if (errno == EAGAIN) {
             fprintf(stderr, "Write socket full, try again later...\n");
@@ -326,6 +332,7 @@ void run_file_server(char *ip, int port) {
   close(sock_fd);
 }
 
+// the main function
 int main(int argc, char *argv[]) {
   if (argc == 3) {
     char *ip = NULL;

@@ -1,3 +1,9 @@
+/*!
+ * \file client.cc
+ * \brief the client for downloading files for CSE 550 assignment 1.
+ * \example
+ *    ./550client 99.99.99.99 23333
+ */
 #include <amted/network.h>
 #include <amted/utils.h>
 #include <unistd.h>
@@ -6,42 +12,46 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::duration<float> fsec;
 
-int collect_no_escape(char *dst, char *src, size_t len) {
+// copy string from src to dst and remove \0 's.
+int memcpy_no_escape(char *dst, char *src, size_t len) {
   bzero(dst, len);
-  char *c = src, *d = dst;
-  for (; c < src + len; ++c) {
-    if (*c != 0) {
-      *d = *c;
+  char *s = src, *d = dst;
+  for (; s < src + len; ++s) {
+    if (*s != 0) {
+      *d = *s;
       d++;
     }
   }
-  return d - dst; 
+  return d - dst;
 }
 
-int download_file(int fd, char *filename, int filename_len) {
-  write(fd, filename, filename_len);  // check buffer overflow.
+// download file with given filename and socket fd.
+int download_file(int fd, char *filename) {
+  write(fd, filename, strlen(filename));  // check buffer overflow.
   static char buf[SOCKET_BUFFER_SIZE];
   static char buf1[SOCKET_BUFFER_SIZE];
   printf("Sent download request to server...\n");
-  int ret, offset;
-  int file_size;
+  int ret = 0, offset = 0;
+  int file_size = 0;
+  // load header (file_size)
   while (1) {
     ret = read(fd, buf, sizeof(buf));
     if (ret == -1) {
       abort();
     } else {
-      int len = collect_no_escape(buf1, buf, sizeof(buf));
+      int len = memcpy_no_escape(buf1, buf, sizeof(buf));
       if (len > 0) {
         try {
           file_size = std::stoi(buf1);
           break;
-        } catch (std::invalid_argument& e) {
+        } catch (std::invalid_argument &e) {
           fprintf(stderr, "Error parsing header...\n");
           for (char *c = buf; c < buf + sizeof(buf); c++) {
             putchar(*c);
@@ -67,23 +77,26 @@ int download_file(int fd, char *filename, int filename_len) {
     return 0;
   }
   bzero(buf, sizeof(buf));
-  int cnt = 0, buf_len = 0;
+  offset = 0;
+
+  // load file content
   while (1) {
     bzero(buf, sizeof(buf));
-    buf_len = read(fd, buf, std::min<int>(sizeof(buf), file_size - cnt));
-    if (buf_len == -1) {
+    ret = read(fd, buf, std::min<int>(sizeof(buf), file_size - offset));
+    if (ret == -1) {
       abort();
     } else {
-      int len = collect_no_escape(buf1, buf, buf_len);
+      int len = memcpy_no_escape(buf1, buf, ret);
       fwrite(buf1, sizeof(char), len, fp);
-      cnt += len;
-      if (cnt >= file_size) break;
+      offset += len;
+      if (offset >= file_size) break;
     }
   }
   fclose(fp);
   return 1;
 }
 
+// process requests on given ip address and port.
 void process_request(char *ip, int port) {
   size_t len = 0;
   int sock_fd;
@@ -117,7 +130,7 @@ void process_request(char *ip, int port) {
     filename[len - 1] = '\0';
     printf("Downloading %s on %s\n", filename, ip);
     auto tic = Time::now();
-    if (download_file(sock_fd, filename, len)) {
+    if (download_file(sock_fd, filename)) {
       auto toc = Time::now();
       printf("Download successful, total time: %ldms\n",
              std::chrono::duration_cast<ms>(toc - tic).count());
@@ -129,6 +142,7 @@ void process_request(char *ip, int port) {
   close(sock_fd);
 }
 
+// main function
 int main(int argc, char *argv[]) {
   if (argc == 3) {
     char *ip = NULL;

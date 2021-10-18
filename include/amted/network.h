@@ -1,4 +1,4 @@
-/*
+/*!
  * \file amted/network.h
  * \brief Network related structures and functions for AMTED server/client.
  */
@@ -10,7 +10,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#ifdef __linux__
+#ifdef USE_EPOLL
 #include <sys/epoll.h>
 #endif
 

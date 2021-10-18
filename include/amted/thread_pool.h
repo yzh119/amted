@@ -1,4 +1,4 @@
-/*
+/*!
  * \file amted/thread_pool.h
  * \brief Thread pool structure for async I/O in amted server.
  * This implementation was based on https://github.com/progschj/ThreadPool
@@ -15,6 +15,11 @@
 #include <stdexcept>
 #include <thread>
 
+/*!
+ * \brief thread pool class
+ * \example
+ *    pool = ThreadPool(POOL_SIZE);
+ */
 class ThreadPool {
  public:
   ThreadPool(size_t);

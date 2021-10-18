@@ -1,4 +1,4 @@
-/*
+/*!
  * \file amted/utils.h
  * \brief Utility functions for AMTED server/client.
  */
@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef __linux__
+#ifdef USE_EPOLL
 #include <sys/epoll.h>
 #endif
 
