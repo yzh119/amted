@@ -81,7 +81,7 @@ int download_file(int fd, char *filename) {
   FILE *fp = fopen(basename.c_str(), "w");
   if (fp == NULL) {
     fprintf(stderr, "File %s creation failed...\n", basename.c_str());
-    return 2;
+    return 0;
   }
 
   offset = 0;
