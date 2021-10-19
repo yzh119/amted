@@ -1,4 +1,5 @@
 import random
 
 for i in range(1000):
-    print(str(random.randint(0, 1000)) + '.html')
+    print(str(random.randint(0, 999)) + '.html')
+print('EOF')
