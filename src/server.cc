@@ -128,7 +128,7 @@ void run_file_server(char *ip, int port) {
           infd = accept(sock_fd, &in_addr, &in_len);
           if (infd == -1) {
             if (errno == EAGAIN) {
-              fprintf(stderr, "Read socket full, try again later...\n");
+              // fprintf(stderr, "Read socket full, try again later...\n");
               continue;
             }
             fprintf(stderr, "Failed to accept conncetion, error code: %d...\n",
@@ -153,6 +153,7 @@ void run_file_server(char *ip, int port) {
         EventStatus *new_status = new EventStatus;
         new_status->conn_fd = infd;
         event.data.ptr = (void *)new_status;
+        printf("%ld\n", (long)event.data.ptr);
         event.events = EPOLLIN | EPOLLET;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, infd, &event) == -1) {
           fprintf(stderr,
@@ -164,12 +165,12 @@ void run_file_server(char *ip, int port) {
         }
       } else if (ev->events & EPOLLIN) {
         // process reading requests;
-        ssize_t ret;
+        ssize_t ret, offset = 0;
         while (1) {
-          ret = read(st->conn_fd, buf, sizeof(buf));
+          ret = read(st->conn_fd, buf + offset, sizeof(buf) - offset);
           if (ret == -1) {
             if (errno == EAGAIN) {
-              fprintf(stderr, "Read socket full, try again later...\n");
+              // fprintf(stderr, "Read socket full, try again later...\n");
               continue;
             }
             fprintf(stderr,
@@ -177,15 +178,18 @@ void run_file_server(char *ip, int port) {
                     st->conn_fd, errno);
             abort();
           } else {
-            break;
+            offset += ret;
+            if (offset >= sizeof(buf)) {
+              break;
+            }
           }
         }
-        if (ret == 0) {
+        if (strlen(buf) == 0) {
           // end of file. close connection
           printf("Close connection on descriptor %d\n", st->conn_fd);
           close(st->conn_fd);
           delete st;
-          break;
+          continue;
         }
         printf("Received request of %s...\n", buf);
         st->filename = buf;
@@ -215,8 +219,17 @@ void run_file_server(char *ip, int port) {
           }));
         }
       } else if (ev->events & EPOLLOUT) {
-        // process write requests;
-        write_requests.emplace_back(st);
+        // don't append to write queue if already exists.
+        bool in_queue = false;
+        for (auto &&x: write_requests) {
+          if (x == st) {
+            in_queue = true;
+            break;
+          }
+        }
+        if (!in_queue) {
+          write_requests.emplace_back(st);
+        }
       }
     }
 
@@ -228,7 +241,7 @@ void run_file_server(char *ip, int port) {
         std::tie(st, fptr) = it->get();
         // file is ready
         std::string filename = st->filename;
-        printf("Load %s complete...\n", st->filename.c_str());
+        printf("Load %ld %s complete...\n", (long)st, st->filename.c_str());
         // update event status
         if (fptr != nullptr) {
           st->fptr = fptr;
@@ -242,7 +255,7 @@ void run_file_server(char *ip, int port) {
         epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
         // remove item from list
         // https://stackoverflow.com/questions/596162/can-you-remove-elements-from-a-stdlist-while-iterating-through-it
-        file_requests.erase(it++);
+        it = file_requests.erase(it);
         continue;
       }
       it++;
@@ -260,33 +273,40 @@ void run_file_server(char *ip, int port) {
         } else {
           sprintf(buf, "%d", -1);
         }
-        ssize_t ret = write(st->conn_fd, buf, sizeof(buf));
-        if (ret == -1) {
-          if (errno == EAGAIN) {
-            fprintf(stderr, "Write socket full, try again later...\n");
-            it++;
-            continue;
+        ssize_t offset = 0;
+        while (1) {
+          ssize_t ret = write(st->conn_fd, buf + offset, sizeof(buf) - offset);
+          if (ret == -1) {
+            if (errno == EAGAIN) {
+              // fprintf(stderr, "Write socket full, try again later...\n");
+              continue;
+            } else {
+              fprintf(
+                  stderr,
+                  "Failed to write header to descriptor %d, error code: %d...\n",
+                  st->conn_fd, errno);
+              abort();
+            }
           } else {
-            fprintf(
-                stderr,
-                "Failed to write header to descriptor %d, error code: %d...\n",
-                st->conn_fd, errno);
-            abort();
+            offset += ret;
+            if (offset >= sizeof(buf)) {
+              break;
+            }
           }
-        } else {
-          // write success
-          if (!file_exist) {
-            // switch to read mode is file do not exists.
-            clear_status(st);
-            event.data.ptr = (void *)st;
-            event.events = EPOLLIN | EPOLLET;
-            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
-            // remove item from list
-            write_requests.erase(it++);
-            continue;
-          }
-          st->sent_header = true;
         }
+        // write success
+        if (!file_exist) {
+          printf("Holy ship\n");
+          // switch to read mode is file do not exists.
+          clear_status(st);
+          event.data.ptr = (void *)st;
+          event.events = EPOLLIN | EPOLLET;
+          epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
+          // remove item from list
+          it = write_requests.erase(it);
+          continue;
+        }
+        st->sent_header = true;
       }
       // writing content;
       if (file_exist) {
@@ -301,7 +321,7 @@ void run_file_server(char *ip, int port) {
         ssize_t ret = write(st->conn_fd, ptr + offset, file_size - offset);
         if (ret == -1) {
           if (errno == EAGAIN) {
-            fprintf(stderr, "Write socket full, try again later...\n");
+            // fprintf(stderr, "Write socket full, try again later...\n");
             it++;
             continue;
           } else {
@@ -322,7 +342,7 @@ void run_file_server(char *ip, int port) {
           event.events = EPOLLIN | EPOLLET;
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, st->conn_fd, &event);
           // remove item from list
-          write_requests.erase(it++);
+          it = write_requests.erase(it);
           continue;
         }
       }

@@ -1,67 +1,71 @@
-/*!
- * \file client.cc
- * \brief the client for downloading files for CSE 550 assignment 1.
- * \example
- *    ./550client 99.99.99.99 23333
- */
-#include <amted/network.h>
+/*!                                                                                                                                                                                                                                                                                                                                 [91/1895]
+ * \file client.cc  
+ * \brief the client for downloading files for CSE 550 assignment 1.  
+ * \example                   
+ *    ./550client 99.99.99.99 23333                
+ */                                                                                
+#include <amted/network.h>                                               
 #include <amted/utils.h>
-#include <unistd.h>
-
-#include <chrono>
-#include <cstdio>
+#include <unistd.h>                                                           
+                                                                                   
+#include <chrono>                                                       
+#include <cstdio>   
 #include <cstdlib>
 #include <cstring>
-#include <stdexcept>
-#include <string>
+#include <stdexcept>                     
+#include <string>                        
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::milliseconds ms;
 typedef std::chrono::duration<float> fsec;
 
-// copy string from src to dst and remove \0 's.
-int memcpy_no_escape(char *dst, char *src, size_t len) {
-  bzero(dst, len);
-  char *s = src, *d = dst;
-  for (; s < src + len; ++s) {
-    if (*s != 0) {
-      *d = *s;
-      d++;
-    }
-  }
-  return d - dst;
-}
-
 // download file with given filename and socket fd.
 int download_file(int fd, char *filename) {
-  write(fd, filename, strlen(filename));  // check buffer overflow.
   static char buf[SOCKET_BUFFER_SIZE];
-  static char buf1[SOCKET_BUFFER_SIZE];
-  printf("Sent download request to server...\n");
+  bzero(buf, sizeof(buf));
+  strcpy(buf, filename);
   int ret = 0, offset = 0;
-  int file_size = 0;
-  // load header (file_size)
+   
   while (1) {
-    ret = read(fd, buf, sizeof(buf));
+    ret = write(fd, buf + offset, sizeof(buf) - offset);  // check buffer overflow. 
     if (ret == -1) {
       abort();
     } else {
-      int len = memcpy_no_escape(buf1, buf, sizeof(buf));
-      if (len > 0) {
-        try {
-          file_size = std::stoi(buf1);
-          break;
-        } catch (std::invalid_argument &e) {
-          fprintf(stderr, "Error parsing header...\n");
-          for (char *c = buf; c < buf + sizeof(buf); c++) {
-            putchar(*c);
-          }
-          puts("");
-          abort();
-        }
+      offset += ret;
+      if (offset >= sizeof(buf)) {
+        break;
+      } 
+    }
+  }
+
+  printf("Sent download %s request to server...\n", buf);
+  int file_size = 0;
+  offset = 0;
+  bzero(buf, sizeof(buf));
+  // load header (file_size)
+  while (1) {
+    ret = read(fd, buf + offset, sizeof(buf) - offset);
+    if (ret == -1) {
+      abort();
+    } else {
+      offset += ret;
+      if (offset >= sizeof(buf)) {
+        break;
       }
     }
   }
+
+  try {
+    file_size = std::stoi(buf);
+  } catch (std::invalid_argument &e) {
+    fprintf(stderr, "Error parsing header...\n");
+    for (char *c = buf; c < buf + sizeof(buf); c++) {
+      putchar(*c);
+    }
+    puts("");
+    abort();
+  }
+
   if (file_size >= 0) {
     printf("File %s found on server, size %dB...\n", filename, file_size);
   } else {
@@ -73,22 +77,20 @@ int download_file(int fd, char *filename) {
       filename_str.substr(filename_str.find_last_of("/\\") + 1);
   FILE *fp = fopen(basename.c_str(), "w");
   if (fp == NULL) {
-    fprintf(stderr, "File %s creation failed...\n", basename.c_str());
-    return 0;
-  }
-  bzero(buf, sizeof(buf));
-  offset = 0;
-
+    fprintf(stderr, "File %s creation failed...\n", basename.c_str());                                                                                                                                                                                                                                                              [12/1895]
+    return 0;                 
+  }                                                
+                                                                                   
+  offset = 0;                                                            
   // load file content
-  while (1) {
+  while (1) {                                                                 
     bzero(buf, sizeof(buf));
     ret = read(fd, buf, std::min<int>(sizeof(buf), file_size - offset));
     if (ret == -1) {
       abort();
     } else {
-      int len = memcpy_no_escape(buf1, buf, ret);
-      fwrite(buf1, sizeof(char), len, fp);
-      offset += len;
+      fwrite(buf, sizeof(char), ret, fp);
+      offset += ret;                     
       if (offset >= file_size) break;
     }
   }
