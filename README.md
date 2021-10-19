@@ -29,9 +29,7 @@ Run the following command to launch client:
 550amtedclient SERVER_IP PORT
 ```
 
-where `SERVER_IP` refers to the server ipv4 address, and `OPEN` must be equal to the port server uses.
-
-the client hangs until you type in a path file ended with a newline. If you type `EOF`, the client would terminate.
+where `SERVER_IP` refers to the server ipv4 address, and `PORT` must be equal to the port server uses. The client hangs until you type in a path file ended with a newline. If you type `EOF`, the client would terminate.
 
 ### Test
 
