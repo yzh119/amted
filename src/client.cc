@@ -37,6 +37,10 @@ int download_file(int fd, char *filename) {
     }
   }
 
+  if (strcmp(filename, "EOF")) {
+    return 2;
+  }
+
   printf("Sent download %s request to server...\n", buf);
   int file_size = 0;
   offset = 0;
@@ -77,7 +81,7 @@ int download_file(int fd, char *filename) {
   FILE *fp = fopen(basename.c_str(), "w");
   if (fp == NULL) {
     fprintf(stderr, "File %s creation failed...\n", basename.c_str());
-    return 0;
+    return 2;
   }
 
   offset = 0;
@@ -131,12 +135,16 @@ void process_request(char *ip, int port) {
     filename[len - 1] = '\0';
     printf("Downloading %s on %s\n", filename, ip);
     auto tic = Time::now();
-    if (download_file(sock_fd, filename)) {
+    int status = download_file(sock_fd, filename);
+    if (status == 1) {
       auto toc = Time::now();
       printf("Download successful, total time: %ldms\n",
              std::chrono::duration_cast<ms>(toc - tic).count());
-    } else {
+    } else if (status == 0) {
       fprintf(stderr, "Download failed...\n");
+    } else {
+      printf("All tasks finished...\n");
+      break;
     }
   }
   // close socket
