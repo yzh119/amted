@@ -1,19 +1,17 @@
-/*!                                                                                                                                                                                                                                                                                                                                 [91/1895]
- * \file client.cc  
- * \brief the client for downloading files for CSE 550 assignment 1.  
- * \example                   
- *    ./550client 99.99.99.99 23333                
- */                                                                                
-#include <amted/network.h>                                               
+/*! [91/1895] \file client.cc \brief the client for downloading files for CSE
+ * 550 assignment 1. \example
+ *    ./550client 99.99.99.99 23333
+ */
+#include <amted/network.h>
 #include <amted/utils.h>
-#include <unistd.h>                                                           
-                                                                                   
-#include <chrono>                                                       
-#include <cstdio>   
+#include <unistd.h>
+
+#include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <stdexcept>                     
-#include <string>                        
+#include <stdexcept>
+#include <string>
 
 typedef std::chrono::high_resolution_clock Time;
 typedef std::chrono::milliseconds ms;
@@ -25,16 +23,17 @@ int download_file(int fd, char *filename) {
   bzero(buf, sizeof(buf));
   strcpy(buf, filename);
   int ret = 0, offset = 0;
-   
+
   while (1) {
-    ret = write(fd, buf + offset, sizeof(buf) - offset);  // check buffer overflow. 
+    ret = write(fd, buf + offset,
+                sizeof(buf) - offset);  // check buffer overflow.
     if (ret == -1) {
       abort();
     } else {
       offset += ret;
       if (offset >= sizeof(buf)) {
         break;
-      } 
+      }
     }
   }
 
@@ -77,20 +76,20 @@ int download_file(int fd, char *filename) {
       filename_str.substr(filename_str.find_last_of("/\\") + 1);
   FILE *fp = fopen(basename.c_str(), "w");
   if (fp == NULL) {
-    fprintf(stderr, "File %s creation failed...\n", basename.c_str());                                                                                                                                                                                                                                                              [12/1895]
-    return 0;                 
-  }                                                
-                                                                                   
-  offset = 0;                                                            
+    fprintf(stderr, "File %s creation failed...\n", basename.c_str());
+    return 0;
+  }
+
+  offset = 0;
   // load file content
-  while (1) {                                                                 
+  while (1) {
     bzero(buf, sizeof(buf));
     ret = read(fd, buf, std::min<int>(sizeof(buf), file_size - offset));
     if (ret == -1) {
       abort();
     } else {
       fwrite(buf, sizeof(char), ret, fp);
-      offset += ret;                     
+      offset += ret;
       if (offset >= file_size) break;
     }
   }

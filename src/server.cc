@@ -221,7 +221,7 @@ void run_file_server(char *ip, int port) {
       } else if (ev->events & EPOLLOUT) {
         // don't append to write queue if already exists.
         bool in_queue = false;
-        for (auto &&x: write_requests) {
+        for (auto &&x : write_requests) {
           if (x == st) {
             in_queue = true;
             break;
@@ -281,10 +281,10 @@ void run_file_server(char *ip, int port) {
               // fprintf(stderr, "Write socket full, try again later...\n");
               continue;
             } else {
-              fprintf(
-                  stderr,
-                  "Failed to write header to descriptor %d, error code: %d...\n",
-                  st->conn_fd, errno);
+              fprintf(stderr,
+                      "Failed to write header to descriptor %d, error code: "
+                      "%d...\n",
+                      st->conn_fd, errno);
               abort();
             }
           } else {
