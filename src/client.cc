@@ -37,7 +37,7 @@ int download_file(int fd, char *filename) {
     }
   }
 
-  if (strcmp(filename, "EOF")) {
+  if (strcmp(filename, "EOF") == 0) {  // end of file list.
     return 2;
   }
 
@@ -142,7 +142,7 @@ void process_request(char *ip, int port) {
              std::chrono::duration_cast<ms>(toc - tic).count());
     } else if (status == 0) {
       fprintf(stderr, "Download failed...\n");
-    } else {
+    } else {  // status == 2
       printf("All tasks finished...\n");
       break;
     }
