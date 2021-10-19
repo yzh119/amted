@@ -31,7 +31,7 @@ Run the following command to launch client:
 
 where `SERVER_IP` refers to the server ipv4 address, and `OPEN` must be equal to the port server uses.
 
-the client hangs until you type in a path file ended with an enter.
+the client hangs until you type in a path file ended with a newline. If you type `EOF`, the client would terminate.
 
 ### Test
 
