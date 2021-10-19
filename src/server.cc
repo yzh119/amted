@@ -184,7 +184,7 @@ void run_file_server(char *ip, int port) {
             }
           }
         }
-        if (strlen(buf) == 0) {
+        if (strcmp(buf, "EOF") == 0) {
           // end of file. close connection
           printf("Close connection on descriptor %d\n", st->conn_fd);
           close(st->conn_fd);
