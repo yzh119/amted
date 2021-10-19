@@ -153,7 +153,6 @@ void run_file_server(char *ip, int port) {
         EventStatus *new_status = new EventStatus;
         new_status->conn_fd = infd;
         event.data.ptr = (void *)new_status;
-        printf("%ld\n", (long)event.data.ptr);
         event.events = EPOLLIN | EPOLLET;
         if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, infd, &event) == -1) {
           fprintf(stderr,
@@ -296,7 +295,6 @@ void run_file_server(char *ip, int port) {
         }
         // write success
         if (!file_exist) {
-          printf("Holy ship\n");
           // switch to read mode is file do not exists.
           clear_status(st);
           event.data.ptr = (void *)st;
