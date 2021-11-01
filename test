@@ -1,6 +1,0 @@
-#!/bin/bash
-if [ ! -d "tests/data/"]
-then
-  echo "Generating data..."
-  python3 tests/gen_data.py
-fi
